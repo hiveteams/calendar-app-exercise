@@ -68,7 +68,6 @@
     "morgan": "^1.9.1",
     "prop-types": "^15.6.2",
     "react": "^16.7.0",
-    "react-datepicker": "^2.14.0",
     "react-dom": "^16.7.0",
     "react-hot-loader": "^4.6.3",
     "react-responsive-modal": "^3.5.1",
