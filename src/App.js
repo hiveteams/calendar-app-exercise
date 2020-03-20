@@ -18,7 +18,7 @@ class App extends React.Component {
     this.state = {
       events: [],
       modalOpen: false,
-      newEvent: false,
+      newEvent: {},
       openedEventTitle: '',
       openedEventId: '',
       isRecurringEvents: false,
@@ -214,7 +214,8 @@ class App extends React.Component {
     this.setState({
       openedEventId: '',
       openedEventTitle: '',
-      newEvent: false,
+      newEvent: {},
+      isEdit: false,
     });
   }
 
