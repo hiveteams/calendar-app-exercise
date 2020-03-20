@@ -327,7 +327,7 @@ class App extends React.Component {
           <EventDetailsForm
             value={openedEventTitle}
             newEvent={this.state.newEvent}
-            showDelete={!newEvent}
+            showDelete={this.state.isEdit}
             onChange={this.onTitleChange}
             onDelete={this.onDelete}
             onSubmit={this.onSubmitEvent}

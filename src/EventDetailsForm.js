@@ -118,7 +118,7 @@ EventDetailsForm.propTypes = {
   handleInput: PropTypes.func,
   handleCheckRecurringEvents: PropTypes.func,
   handleChange: PropTypes.func,
-  newEvent: PropTypes.object | PropTypes.bool,
+  newEvent: PropTypes.object,
 };
 
 EventDetailsForm.defaultProps = {
@@ -131,6 +131,7 @@ EventDetailsForm.defaultProps = {
   handleInput: () => {},
   handleCheckRecurringEvents: () => {},
   handleChange: () => {},
+  newEvent: {},
 };
 
 export default EventDetailsForm;
