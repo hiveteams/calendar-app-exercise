@@ -37,3 +37,7 @@ img {
 .warning {
   color: red;
 }
+
+.event-form .recurring > div {
+  margin-bottom: 10px;
+}

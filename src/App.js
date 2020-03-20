@@ -6,6 +6,7 @@ import FullCalendar from 'fullcalendar-reactwrapper';
 import Modal from 'react-responsive-modal';
 
 import EventDetailsForm from './EventDetailsForm';
+import { getDates } from './getDates';
 
 // See the FullCalendar API for details on how to use it:
 // https://fullcalendar.io/docs
@@ -20,6 +21,9 @@ class App extends React.Component {
       newEvent: false,
       openedEventTitle: '',
       openedEventId: '',
+      isRecurringEvents: false,
+      selectedOption: null,
+      isEdit: false,
     };
 
     this.fetchAndLoadEvents = this.fetchAndLoadEvents.bind(this);
@@ -31,20 +35,35 @@ class App extends React.Component {
     this.onExitedModal = this.onExitedModal.bind(this);
     this.onTitleChange = this.onTitleChange.bind(this);
     this.onDelete = this.onDelete.bind(this);
+    this.createEditEvent = this.createEditEvent.bind(this);
+    this.onSubmitEvent = this.onSubmitEvent.bind(this);
+    this.updateEvent = this.updateEvent.bind(this);
+    this.handleInput = this.handleInput.bind(this);
+    this.handleCheckRecurringEvents = this.handleCheckRecurringEvents.bind(
+      this
+    );
+    this.handleChange = this.handleChange.bind(this);
+    this.recurringEvents = this.recurringEvents.bind(this);
   }
 
   transformToFullcalendarEvent(event) {
-    const start = new Date(event.start);
-    const end = new Date(event.end);
+    let start = new Date(event.start);
+    let end = new Date(event.end);
     return {
+      ...event,
       allDay: true,
       id: event._id,
       title: event.title,
       start,
       end,
+      realId: event.realId || event._id,
     };
   }
-
+  handleInput({ target }) {
+    const newEvent = { ...this.state.newEvent };
+    newEvent[target.name] = target.value;
+    this.setState({ newEvent });
+  }
   updateEventDates(event) {
     // start = midnight on day of in UTC
     // end = start + 24 hours - 1 second
@@ -62,14 +81,27 @@ class App extends React.Component {
         start: momentStart.toDate(),
         end: momentEnd.toDate(),
       })
+      .then(() => {
+        const updatedEvent = { ...event, start: momentStart, end: momentEnd };
+        this.updateEvent(updatedEvent);
+      })
       .catch(error => {
         alert('Something went wrong! Check the console.');
-        console.log(error);
+        console.error(error);
       });
+  }
+  handleCheckRecurringEvents() {
+    this.setState(({ newEvent }) => {
+      const updatedEvent = { ...newEvent };
+      updatedEvent.isRecurringEvents = !newEvent.isRecurringEvents;
+      return { newEvent: updatedEvent };
+    });
   }
 
   onEventDrop(event) {
-    this.updateEventDates(event);
+    if (!event.isRecurringEvents) {
+      this.updateEventDates(event);
+    }
   }
 
   onEventResize(event) {
@@ -77,50 +109,103 @@ class App extends React.Component {
   }
 
   onEventClick(event) {
+    const _event = this.state.events.find(
+      _event => _event.realId === event.realId
+    );
     this.setState({
       modalOpen: true,
       openedEventTitle: event.title,
-      openedEventId: event.id,
+      openedEventId: event.realId,
+      newEvent: { ..._event },
+      isEdit: true,
     });
   }
 
-  onCloseModal() {
-    // Update the event
+  updateEvent(updatedEvent) {
+    const { events } = this.state;
+    let updatedEvents;
+    if (updatedEvent.isRecurringEvents) {
+      updatedEvents = events.filter(elem => elem.realId !== updatedEvent._id);
+      this.recurringEvents(updatedEvent, updatedEvents);
+    } else {
+      updatedEvents = events.filter(
+        _event => _event.realId !== updatedEvent._id
+      );
+      updatedEvents.push(this.transformToFullcalendarEvent(updatedEvent));
+    }
+    this.setState({ events: updatedEvents });
+  }
+
+  createEditEvent() {
     const { openedEventId, openedEventTitle, newEvent } = this.state;
-    if (newEvent) {
+    if (!this.state.isEdit) {
       axios
-        .post('/api/events', { ...newEvent, title: openedEventTitle })
+        .post('/api/events', {
+          title: openedEventTitle,
+          interval: newEvent.interval,
+          days: newEvent.days,
+          startDate: newEvent.startDate,
+          endDate: newEvent.endDate,
+          start: newEvent.start,
+          end: newEvent.end,
+          isRecurringEvents: newEvent.isRecurringEvents,
+        })
         .then(({ data }) => {
           const { events } = this.state;
-          events.push(this.transformToFullcalendarEvent(data));
-          this.setState({ events });
-        })
-        .catch(error => {
-          alert('Something went wrong! Check the console.');
-          console.log(error);
-        });
-    } else {
-      axios
-        .put(`/api/events/${openedEventId}`, { title: openedEventTitle })
-        .then(({ data: updatedEvent }) => {
-          // Find the event in our events array and update it accordingly
-          const { events } = this.state;
-          const updatedEvents = events.map(_event => {
-            if (_event.id === updatedEvent._id) {
-              return this.transformToFullcalendarEvent(updatedEvent);
-            }
-            return _event;
-          });
+          const updatedEvents = [...events];
+          this.recurringEvents(data, updatedEvents);
           this.setState({ events: updatedEvents });
         })
         .catch(error => {
           alert('Something went wrong! Check the console.');
-          console.log(error);
+          console.error(error);
         });
+    } else {
+      this.setState({ isEdit: false });
+      axios
+        .put(`/api/events/${openedEventId}`, {
+          title: openedEventTitle,
+          interval: newEvent.interval,
+          days: newEvent.days,
+          startDate: newEvent.startDate,
+          start: newEvent.start,
+          end: newEvent.end,
+          endDate: newEvent.endDate,
+          isRecurringEvents: newEvent.isRecurringEvents,
+        })
+        .then(({ data: updatedEvent }) => {
+          // Find the event in our events array and update it accordingly
+          this.updateEvent(updatedEvent);
+        })
+        .catch(error => {
+          alert('Something went wrong! Check the console.');
+          console.error(error);
+        });
+    }
+  }
+  onCloseModal() {
+    const { openedEventId, openedEventTitle } = this.state;
+    if (openedEventId || openedEventTitle) {
+      this.createEditEvent();
     }
     // Close modal
     this.setState({
       modalOpen: false,
+    });
+  }
+
+  onSubmitEvent(evt) {
+    evt.preventDefault();
+    this.createEditEvent();
+    this.setState({
+      modalOpen: false,
+    });
+  }
+  handleChange(days) {
+    this.setState(({ newEvent }) => {
+      const updateEvent = { ...newEvent };
+      updateEvent.days = days.map(elem => elem.value);
+      return { newEvent: updateEvent };
     });
   }
 
@@ -166,30 +251,63 @@ class App extends React.Component {
       modalOpen: true,
     });
   }
+  recurringEvents(event, allEvents) {
+    if (event.isRecurringEvents) {
+      const eventsDays = getDates(
+        event.interval,
+        event.days,
+        event.startDate,
+        event.endDate
+      );
+      eventsDays.forEach(day =>
+        allEvents.push(
+          this.transformToFullcalendarEvent({
+            ...event,
+            start: moment(day)
+              .add(2, 'hours')
+              .utc(),
+            end: moment(day)
+              .utc()
+              .add(5, 'hours')
+              .add(-1, 'seconds'),
+            _id: `${event._id}${day}`,
+            realId: event._id,
+          })
+        )
+      );
+    } else {
+      allEvents.push(this.transformToFullcalendarEvent(event));
+    }
 
+    return allEvents;
+  }
   fetchAndLoadEvents() {
     return axios
       .get('/api/events')
       .then(({ data }) => {
-        const newEvents = data.map(this.transformToFullcalendarEvent);
+        let newEvents = [];
+        data.forEach(elem => {
+          this.recurringEvents(elem, newEvents);
+        });
         this.setState({ events: newEvents });
       })
       .catch(error => {
         alert('Something went wrong! Check the console.');
-        console.log(error);
+        console.error(error);
       });
   }
 
   componentDidMount() {
     this.fetchAndLoadEvents();
   }
+
   render() {
     const { events, modalOpen, openedEventTitle, newEvent } = this.state;
     return (
       <div>
         <FullCalendar
           editable={true}
-          timezone="UTC"
+          // timezone="UTC"
           events={events}
           eventDrop={this.onEventDrop}
           eventResize={this.onEventResize}
@@ -207,9 +325,14 @@ class App extends React.Component {
           <h5>{newEvent ? 'New Event' : 'Edit Event'}</h5>
           <EventDetailsForm
             value={openedEventTitle}
+            newEvent={this.state.newEvent}
             showDelete={!newEvent}
             onChange={this.onTitleChange}
             onDelete={this.onDelete}
+            onSubmit={this.onSubmitEvent}
+            handleCheckRecurringEvents={this.handleCheckRecurringEvents}
+            handleChange={this.handleChange}
+            handleInput={this.handleInput}
           />
         </Modal>
       </div>

@@ -63,13 +63,16 @@
     "express": "^4.16.4",
     "fullcalendar-reactwrapper": "^1.0.7",
     "moment": "^2.24.0",
+    "moment-recur": "^1.0.7",
     "mongodb": "^3.1.12",
     "morgan": "^1.9.1",
     "prop-types": "^15.6.2",
     "react": "^16.7.0",
+    "react-datepicker": "^2.14.0",
     "react-dom": "^16.7.0",
     "react-hot-loader": "^4.6.3",
-    "react-responsive-modal": "^3.5.1"
+    "react-responsive-modal": "^3.5.1",
+    "react-select": "^3.0.8"
   },
   "description": ""
 }
