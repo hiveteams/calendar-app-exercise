@@ -7,6 +7,28 @@ import Modal from 'react-responsive-modal';
 
 import EventDetailsForm from './EventDetailsForm';
 
+// eslint-disable-next-line no-unused-vars
+const getDates = (interval, days, startDate, endDate) => {
+  const start = moment(startDate);
+  const end = moment(endDate);
+  const dateArray = [];
+  for (
+    let date = start.clone();
+    date.isBefore(end);
+    date.add(7 * interval, 'days')
+  ) {
+    days.forEach(dayNumber => {
+      const dateByDayNumber = date.clone().day(dayNumber);
+      if (dateByDayNumber.isBefore(end) && dateByDayNumber.isAfter(start)) {
+        dateArray.push(dateByDayNumber.format('MM/DD/YYYY'));
+      }
+    });
+  }
+  return dateArray;
+};
+
+const getValue = ({ value }) => value;
+
 // See the FullCalendar API for details on how to use it:
 // https://fullcalendar.io/docs
 // We're using fullcalendar-reactwrapper to wrap it in a React
@@ -20,6 +42,12 @@ class App extends React.Component {
       newEvent: false,
       openedEventTitle: '',
       openedEventId: '',
+      isRecurring: false,
+      intervalValue: 1,
+      daysArray: [],
+      startDate: new Date(),
+      endDate: new Date(),
+      errorMessage: '',
     };
 
     this.fetchAndLoadEvents = this.fetchAndLoadEvents.bind(this);
@@ -29,8 +57,10 @@ class App extends React.Component {
     this.onDayClick = this.onDayClick.bind(this);
     this.onCloseModal = this.onCloseModal.bind(this);
     this.onExitedModal = this.onExitedModal.bind(this);
-    this.onTitleChange = this.onTitleChange.bind(this);
+    this.onFieldChange = this.onFieldChange.bind(this);
     this.onDelete = this.onDelete.bind(this);
+    this.onEventUpdate = this.onEventUpdate.bind(this);
+    this.onEventCreate = this.onEventCreate.bind(this);
   }
 
   transformToFullcalendarEvent(event) {
@@ -62,6 +92,16 @@ class App extends React.Component {
         start: momentStart.toDate(),
         end: momentEnd.toDate(),
       })
+      .then(({ data: updatedEvent }) => {
+        const { events } = this.state;
+        const updatedEvents = events.map(event => {
+          if (event.id === updatedEvent._id) {
+            return this.transformToFullcalendarEvent(updatedEvent);
+          }
+          return event;
+        });
+        this.setState({ events: updatedEvents });
+      })
       .catch(error => {
         alert('Something went wrong! Check the console.');
         console.log(error);
@@ -84,24 +124,33 @@ class App extends React.Component {
     });
   }
 
-  onCloseModal() {
-    // Update the event
-    const { openedEventId, openedEventTitle, newEvent } = this.state;
-    if (newEvent) {
-      axios
-        .post('/api/events', { ...newEvent, title: openedEventTitle })
-        .then(({ data }) => {
-          const { events } = this.state;
-          events.push(this.transformToFullcalendarEvent(data));
-          this.setState({ events });
-        })
-        .catch(error => {
-          alert('Something went wrong! Check the console.');
-          console.log(error);
-        });
+  onEventUpdate() {
+    const {
+      openedEventId,
+      openedEventTitle,
+      isRecurring,
+      intervalValue,
+      daysArray,
+      startDate,
+      endDate,
+    } = this.state;
+
+    if (!openedEventTitle) {
+      this.setState({ errorMessage: 'Title is a required field.' });
     } else {
+      const eventData = isRecurring
+        ? {
+          title: openedEventTitle,
+          intervalValue,
+          daysArray: daysArray.map(getValue),
+          start: startDate,
+          end: endDate,
+        }
+        : {
+          title: openedEventTitle,
+        };
       axios
-        .put(`/api/events/${openedEventId}`, { title: openedEventTitle })
+        .put(`/api/events/${openedEventId}`, eventData)
         .then(({ data: updatedEvent }) => {
           // Find the event in our events array and update it accordingly
           const { events } = this.state;
@@ -117,7 +166,52 @@ class App extends React.Component {
           alert('Something went wrong! Check the console.');
           console.log(error);
         });
+      this.onCloseModal();
     }
+  }
+
+  onEventCreate() {
+    const {
+      openedEventTitle,
+      isRecurring,
+      intervalValue,
+      daysArray,
+      startDate,
+      endDate,
+      newEvent,
+    } = this.state;
+
+    if (!openedEventTitle) {
+      this.setState({ errorMessage: 'Title is required field.' });
+    } else {
+      const eventData = isRecurring
+        ? {
+          title: openedEventTitle,
+          intervalValue,
+          daysArray: daysArray.map(getValue),
+          start: startDate,
+          end: endDate,
+        }
+        : {
+          ...newEvent,
+          title: openedEventTitle,
+        };
+      axios
+        .post('/api/events', eventData)
+        .then(({ data }) => {
+          const { events } = this.state;
+          events.push(this.transformToFullcalendarEvent(data));
+          this.setState({ events });
+        })
+        .catch(error => {
+          alert('Something went wrong! Check the console.');
+          console.log(error);
+        });
+      this.onCloseModal();
+    }
+  }
+
+  onCloseModal() {
     // Close modal
     this.setState({
       modalOpen: false,
@@ -129,12 +223,18 @@ class App extends React.Component {
     this.setState({
       openedEventId: '',
       openedEventTitle: '',
+      errorMessage: '',
       newEvent: false,
+      isRecurring: false,
+      intervalValue: 1,
+      daysArray: [],
+      startDate: new Date(),
+      endDate: new Date(),
     });
   }
 
-  onTitleChange(event) {
-    this.setState({ openedEventTitle: event.currentTarget.value });
+  onFieldChange(field, value) {
+    this.setState({ [field]: value });
   }
 
   onDelete() {
@@ -183,8 +283,20 @@ class App extends React.Component {
   componentDidMount() {
     this.fetchAndLoadEvents();
   }
+
   render() {
-    const { events, modalOpen, openedEventTitle, newEvent } = this.state;
+    const {
+      events,
+      modalOpen,
+      openedEventTitle,
+      newEvent,
+      errorMessage,
+      isRecurring,
+      intervalValue,
+      daysArray,
+      startDate,
+      endDate,
+    } = this.state;
     return (
       <div>
         <FullCalendar
@@ -204,12 +316,21 @@ class App extends React.Component {
           closeIconSize={14}
           classNames={{ modal: 'event-modal', closeIcon: 'modal-close' }}
         >
-          <h5>{newEvent ? 'New Event' : 'Edit Event'}</h5>
+          <h3>{newEvent ? 'New Event' : 'Edit Event'}</h3>
           <EventDetailsForm
-            value={openedEventTitle}
-            showDelete={!newEvent}
-            onChange={this.onTitleChange}
+            errorMessage={errorMessage}
+            title={openedEventTitle}
+            interval={intervalValue}
+            isRecurring={isRecurring}
+            daysArray={daysArray}
+            startDate={startDate}
+            endDate={endDate}
+            isNewEvent={!!newEvent}
+            onFieldChange={this.onFieldChange}
             onDelete={this.onDelete}
+            onClose={this.onCloseModal}
+            onEventCreate={this.onEventCreate}
+            onEventUpdate={this.onEventUpdate}
           />
         </Modal>
       </div>

@@ -3,6 +3,37 @@ import { ObjectID } from 'mongodb';
 
 const router = Router();
 
+/*
+EventsModel = {
+  title: {
+    type: String,
+    optional: false,
+  },
+  start: {
+    type: Date,
+    optional: false,
+  },
+  end: {
+    type: Date,
+    optional: false,
+  },
+  interval: {
+    type: Number,
+    optional: true,
+  },
+  daysArray: {
+    type: Array,
+    optional: true,
+  },
+  'daysArray.$ '{
+    type: Number,
+    optional: false,
+
+    allowedValues: Array(10).fill().map((_, i) => i + 1),
+  },
+};
+*/
+
 router
   .route('/')
   /** GET /api/events - Get list of events */
@@ -20,7 +51,7 @@ router
     try {
       const {
         mongo: { Events },
-        body: { title, start, end },
+        body: { title, start, end, ...rest },
       } = req;
       if (!title) throw new Error('Required field "title" missing.');
       if (!start) throw new Error('Required field "start" missing.');
@@ -30,9 +61,11 @@ router
         title,
         start: new Date(start),
         end: new Date(end),
+        ...rest,
       };
-      res.json(newEventDoc);
-      await Events.insertOne(newEventDoc);
+      const newEvent = await Events.insertOne(newEventDoc);
+      const newEventData = newEvent.ops[0];
+      res.json(newEventData);
     } catch (e) {
       next(e);
     }
@@ -77,6 +110,10 @@ router
         } else if (k === 'end') {
           if (!val.trim()) throw new Error('Event "end" can not be empty');
           fieldsToUpdate.end = new Date(val);
+        } else if (k === 'intervalValue') {
+          fieldsToUpdate.intervalValue = val;
+        } else if (k === 'daysArray') {
+          fieldsToUpdate.daysArray = val;
         }
       });
       await Events.updateOne({ _id }, { $set: fieldsToUpdate });
